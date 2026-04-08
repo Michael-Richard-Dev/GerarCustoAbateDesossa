@@ -11,6 +11,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.200" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\GerarCustoAbateDesossa.Application\GerarCustoAbateDesossa.Application.csproj" />
     <ProjectReference Include="..\GerarCustoAbateDesossa.Domain\GerarCustoAbateDesossa.Domain.csproj" />
   </ItemGroup>
