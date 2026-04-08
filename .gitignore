@@ -1,0 +1,9 @@
+.vs/
+build/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.cache
+*.pdb
+*.log

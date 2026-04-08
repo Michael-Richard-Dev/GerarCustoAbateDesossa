@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GerarCustoAbateDesossa.Application/GerarCustoAbateDesossa.Application.csproj" />
+    <Project Path="src/GerarCustoAbateDesossa.Desktop/GerarCustoAbateDesossa.Desktop.csproj" />
+    <Project Path="src/GerarCustoAbateDesossa.Domain/GerarCustoAbateDesossa.Domain.csproj" />
+    <Project Path="src/GerarCustoAbateDesossa.Infrastructure/GerarCustoAbateDesossa.Infrastructure.csproj" />
+  </Folder>
+</Solution>
