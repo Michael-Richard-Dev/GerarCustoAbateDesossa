@@ -24,8 +24,11 @@ Migracao inicial do projeto Lazarus/Delphi localizado em:
 Edite o arquivo `src/GerarCustoAbateDesossa.Desktop/CONFIG.INI` com:
 
 - `ConnectionString`: conexao Oracle.
+- `TnsAdmin`: pasta que contem `tnsnames.ora` e `sqlnet.ora` quando usar alias como `FRIGOSUL`.
 - `ProviderAssemblyPath`: caminho para `Oracle.ManagedDataAccess.dll`, se necessario.
 - `LibraryLocation`: opcional, para incluir o client Oracle nativo no `PATH`.
+
+Se preferir, tambem pode preencher `DataSource`, `UserId` e `Password` separadamente no `CONFIG.INI`.
 
 ## Observacao importante
 

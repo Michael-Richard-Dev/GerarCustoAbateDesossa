@@ -164,10 +164,12 @@ public sealed class CostDataService : ICostDataService
         """;
 
     private readonly string _connectionString;
+    private readonly string? _tnsAdmin;
 
     public CostDataService(DatabaseOptions databaseOptions)
     {
         _connectionString = databaseOptions.ConnectionString;
+        _tnsAdmin = databaseOptions.TnsAdmin;
     }
 
     public DataTable LoadCosts(CostSearchRequest request)
@@ -241,6 +243,11 @@ public sealed class CostDataService : ICostDataService
     private OracleConnection CreateOpenConnection()
     {
         var connection = new OracleConnection(_connectionString);
+        if (!string.IsNullOrWhiteSpace(_tnsAdmin))
+        {
+            connection.TnsAdmin = _tnsAdmin;
+        }
+
         connection.Open();
         return connection;
     }

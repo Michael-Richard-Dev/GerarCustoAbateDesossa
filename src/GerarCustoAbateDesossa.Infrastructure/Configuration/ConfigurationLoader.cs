@@ -22,6 +22,9 @@ public static class ConfigurationLoader
         var libraryLocation = ExpandOptionalPath(
             ini.GetValue("DATABASE", "LibraryLocation", ini.GetValue("CONFIG", "LibraryLocation", string.Empty)),
             configPath);
+        var tnsAdmin = ExpandOptionalPath(
+            ini.GetValue("DATABASE", "TnsAdmin", ini.GetValue("CONFIG", "TnsAdmin", string.Empty)),
+            configPath);
 
         var connectionString = ini.GetValue("DATABASE", "ConnectionString", string.Empty);
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -46,7 +49,8 @@ public static class ConfigurationLoader
             providerInvariantName,
             connectionString,
             providerAssemblyPath,
-            libraryLocation);
+            libraryLocation,
+            tnsAdmin);
     }
 
     private static string? ExpandOptionalPath(string value, string configPath)
