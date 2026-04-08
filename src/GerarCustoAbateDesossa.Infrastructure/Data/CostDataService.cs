@@ -110,6 +110,11 @@ public sealed class CostDataService : ICostDataService
          ORDER BY DATA
         """;
 
+    private const string CountGeneratedAbateSql = """
+        SELECT COUNT(1)
+          FROM TABLE(SIGMA_CST.PKG_ABATE.PPL_APROVEITAMENTO(:unidade, :data_inicial, :data_final))
+        """;
+
     private const string InsertDesossaSql = """
         INSERT INTO CCAMILO.CUSTO_DESOSSA
         (
@@ -168,6 +173,11 @@ public sealed class CostDataService : ICostDataService
                DATA
           FROM TABLE(SIGMA_CST.PKG_INDUSTRIALIZADO.PPL_RESULTADO(:unidade, :data_inicial, :data_final))
          ORDER BY DATA
+        """;
+
+    private const string CountGeneratedDesossaSql = """
+        SELECT COUNT(1)
+          FROM TABLE(SIGMA_CST.PKG_INDUSTRIALIZADO.PPL_RESULTADO(:unidade, :data_inicial, :data_final))
         """;
 
     private readonly string _connectionString;
@@ -251,8 +261,27 @@ public sealed class CostDataService : ICostDataService
                 DeleteExistingRecords(connection, transaction, request.Type, request.UnitId, currentDate);
             }
 
+            var generatedRows = CountGeneratedRows(connection, transaction, request.Type, request.UnitId, currentDate);
+            if (generatedRows == 0)
+            {
+                transaction.Rollback();
+                reportStatus?.Invoke($"Nenhum registro foi retornado pela rotina Oracle no dia {currentDate:dd/MM/yyyy}.");
+                skippedDays++;
+                continue;
+            }
+
             ExecuteCollection(connection, transaction, request.Type, request.UnitId, currentDate);
+
+            var persistedRows = GetExistingRecordCount(connection, request.Type, request.UnitId, currentDate, transaction);
+            if (persistedRows == 0)
+            {
+                transaction.Rollback();
+                throw new InvalidOperationException(
+                    $"A rotina Oracle retornou dados para {currentDate:dd/MM/yyyy}, mas nenhum registro foi localizado na tabela de destino.");
+            }
+
             transaction.Commit();
+            reportStatus?.Invoke($"Dia {currentDate:dd/MM/yyyy}: {persistedRows} registro(s) gravado(s).");
 
             processedDays++;
         }
@@ -337,11 +366,23 @@ public sealed class CostDataService : ICostDataService
         };
     }
 
-    private static int GetExistingRecordCount(OracleConnection connection, CostType type, int unitId, DateTime date)
+    private static int GetExistingRecordCount(OracleConnection connection, CostType type, int unitId, DateTime date, OracleTransaction? transaction = null)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         ConfigureCommand(command, type == CostType.Abate ? CountAbateSql : CountDesossaSql);
         AddSingleDateParameters(command, unitId, date);
+
+        var value = command.ExecuteScalar();
+        return Convert.ToInt32(value);
+    }
+
+    private static int CountGeneratedRows(OracleConnection connection, OracleTransaction transaction, CostType type, int unitId, DateTime date)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        ConfigureCommand(command, type == CostType.Abate ? CountGeneratedAbateSql : CountGeneratedDesossaSql);
+        AddCollectionDateRangeParameters(command, unitId, date, date);
 
         var value = command.ExecuteScalar();
         return Convert.ToInt32(value);
