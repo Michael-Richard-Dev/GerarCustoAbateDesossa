@@ -179,8 +179,7 @@ public sealed class CostDataService : ICostDataService
 
         using var connection = CreateOpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = request.Type == CostType.Abate ? SelectAbateSql : SelectDesossaSql;
-        command.CommandTimeout = 0;
+        ConfigureCommand(command, request.Type == CostType.Abate ? SelectAbateSql : SelectDesossaSql);
 
         AddDateRangeParameters(command, request.UnitId, request.StartDate, request.EndDate);
 
@@ -327,8 +326,7 @@ public sealed class CostDataService : ICostDataService
     private static int GetExistingRecordCount(OracleConnection connection, CostType type, int unitId, DateTime date)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = type == CostType.Abate ? CountAbateSql : CountDesossaSql;
-        command.CommandTimeout = 0;
+        ConfigureCommand(command, type == CostType.Abate ? CountAbateSql : CountDesossaSql);
         AddSingleDateParameters(command, unitId, date);
 
         var value = command.ExecuteScalar();
@@ -339,8 +337,7 @@ public sealed class CostDataService : ICostDataService
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = type == CostType.Abate ? DeleteAbateSql : DeleteDesossaSql;
-        command.CommandTimeout = 0;
+        ConfigureCommand(command, type == CostType.Abate ? DeleteAbateSql : DeleteDesossaSql);
         AddSingleDateParameters(command, unitId, date);
         command.ExecuteNonQuery();
     }
@@ -349,9 +346,15 @@ public sealed class CostDataService : ICostDataService
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = type == CostType.Abate ? InsertAbateSql : InsertDesossaSql;
-        command.CommandTimeout = 0;
+        ConfigureCommand(command, type == CostType.Abate ? InsertAbateSql : InsertDesossaSql);
         AddDateRangeParameters(command, unitId, date, date);
         command.ExecuteNonQuery();
+    }
+
+    private static void ConfigureCommand(OracleCommand command, string sql)
+    {
+        command.BindByName = true;
+        command.CommandText = sql;
+        command.CommandTimeout = 0;
     }
 }
