@@ -187,7 +187,7 @@ public sealed class CostDataService : ICostDataService
         using var command = connection.CreateCommand();
         ConfigureCommand(command, request.Type == CostType.Abate ? SelectAbateSql : SelectDesossaSql);
 
-        AddDateRangeParameters(command, request.UnitId, request.StartDate, request.EndDate);
+        AddSearchDateRangeParameters(command, request.UnitId, request.StartDate, request.EndDate);
 
         var dataTable = new DataTable();
         using var reader = command.ExecuteReader();
@@ -280,11 +280,18 @@ public sealed class CostDataService : ICostDataService
         }
     }
 
-    private static void AddDateRangeParameters(OracleCommand command, int unitId, DateTime startDate, DateTime endDate)
+    private static void AddSearchDateRangeParameters(OracleCommand command, int unitId, DateTime startDate, DateTime endDate)
     {
         AddParameter(command, "unidade", unitId, OracleDbType.Int32);
         AddParameter(command, "data_inicial", startDate.Date, OracleDbType.Date);
         AddParameter(command, "data_limite", endDate.Date.AddDays(1), OracleDbType.Date);
+    }
+
+    private static void AddCollectionDateRangeParameters(OracleCommand command, int unitId, DateTime startDate, DateTime endDate)
+    {
+        AddParameter(command, "unidade", unitId, OracleDbType.Int32);
+        AddParameter(command, "data_inicial", startDate.Date, OracleDbType.Date);
+        AddParameter(command, "data_final", endDate.Date, OracleDbType.Date);
     }
 
     private static void AddSingleDateParameters(OracleCommand command, int unitId, DateTime date)
@@ -354,7 +361,7 @@ public sealed class CostDataService : ICostDataService
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         ConfigureCommand(command, type == CostType.Abate ? InsertAbateSql : InsertDesossaSql);
-        AddDateRangeParameters(command, unitId, date, date);
+        AddCollectionDateRangeParameters(command, unitId, date, date);
         command.ExecuteNonQuery();
     }
 
