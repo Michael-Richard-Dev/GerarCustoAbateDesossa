@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using GerarCustoAbateDesossa.Application;
 using GerarCustoAbateDesossa.Domain;
 using Oracle.ManagedDataAccess.Client;
@@ -8,6 +9,14 @@ namespace GerarCustoAbateDesossa.Infrastructure.Data;
 
 public sealed class CostDataService : ICostDataService
 {
+    private static readonly HashSet<string> FiveDecimalColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "VALOR_MATERIA_PRIMA_KG",
+        "VALOR_MOD_KG",
+        "VALOR_CIF_KG",
+        "VALOR_EMBALAGEM_KG"
+    };
+
     private const string SelectAbateSql = """
         SELECT *
           FROM CCAMILO.CUSTO_ABATE
@@ -212,7 +221,7 @@ public sealed class CostDataService : ICostDataService
             var row = dataTable.NewRow();
             for (var fieldIndex = 0; fieldIndex < reader.FieldCount; fieldIndex++)
             {
-                row[fieldIndex] = NormalizeFieldValue(reader, fieldIndex);
+                row[fieldIndex] = NormalizeFieldValue(reader, fieldIndex, reader.GetName(fieldIndex));
             }
 
             dataTable.Rows.Add(row);
@@ -339,7 +348,7 @@ public sealed class CostDataService : ICostDataService
         command.Parameters.Add(parameter);
     }
 
-    private static object NormalizeFieldValue(OracleDataReader reader, int fieldIndex)
+    private static object NormalizeFieldValue(OracleDataReader reader, int fieldIndex, string columnName)
     {
         if (reader.IsDBNull(fieldIndex))
         {
@@ -353,7 +362,7 @@ public sealed class CostDataService : ICostDataService
             OracleTimeStamp oracleTimeStamp => oracleTimeStamp.Value.ToString("dd/MM/yyyy HH:mm:ss"),
             OracleTimeStampLTZ oracleTimeStampLtz => oracleTimeStampLtz.Value.ToString("dd/MM/yyyy HH:mm:ss"),
             OracleTimeStampTZ oracleTimeStampTz => oracleTimeStampTz.Value.ToString(),
-            OracleDecimal oracleDecimal => oracleDecimal.ToString(),
+            OracleDecimal oracleDecimal => FormatOracleDecimal(oracleDecimal, columnName),
             OracleString oracleString => oracleString.Value,
             OracleClob oracleClob => oracleClob.Value,
             OracleBlob oracleBlob => Convert.ToBase64String(oracleBlob.Value),
@@ -361,9 +370,32 @@ public sealed class CostDataService : ICostDataService
             OracleIntervalDS oracleIntervalDs => oracleIntervalDs.ToString(),
             OracleIntervalYM oracleIntervalYm => oracleIntervalYm.ToString(),
             DateTime dateTime => dateTime.ToString("dd/MM/yyyy HH:mm:ss"),
+            decimal decimalValue => FormatDecimal(decimalValue, columnName),
+            double doubleValue => FormatDecimal((decimal)doubleValue, columnName),
+            float floatValue => FormatDecimal((decimal)floatValue, columnName),
             byte[] bytes => Convert.ToBase64String(bytes),
             _ => value.ToString() ?? string.Empty
         };
+    }
+
+    private static string FormatOracleDecimal(OracleDecimal value, string columnName)
+    {
+        if (FiveDecimalColumns.Contains(columnName) && !value.IsNull)
+        {
+            return FormatDecimal(value.Value, columnName);
+        }
+
+        return value.ToString();
+    }
+
+    private static string FormatDecimal(decimal value, string columnName)
+    {
+        if (FiveDecimalColumns.Contains(columnName))
+        {
+            return value.ToString("N5", CultureInfo.CurrentCulture);
+        }
+
+        return value.ToString(CultureInfo.CurrentCulture);
     }
 
     private static int GetExistingRecordCount(OracleConnection connection, CostType type, int unitId, DateTime date, OracleTransaction? transaction = null)
