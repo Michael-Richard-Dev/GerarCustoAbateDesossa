@@ -14,8 +14,7 @@ internal static class Program
         {
             var configPath = Path.Combine(AppContext.BaseDirectory, "CONFIG.INI");
             var databaseOptions = ConfigurationLoader.LoadDatabaseOptions(configPath);
-            var providerResolver = new DbProviderFactoryResolver();
-            var costDataService = new CostDataService(databaseOptions, providerResolver);
+            var costDataService = new CostDataService(databaseOptions);
 
             System.Windows.Forms.Application.Run(new MainForm(costDataService));
         }

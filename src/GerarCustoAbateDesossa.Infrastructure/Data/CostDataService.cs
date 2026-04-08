@@ -1,7 +1,7 @@
 using System.Data;
-using System.Data.Common;
 using GerarCustoAbateDesossa.Application;
 using GerarCustoAbateDesossa.Domain;
+using Oracle.ManagedDataAccess.Client;
 
 namespace GerarCustoAbateDesossa.Infrastructure.Data;
 
@@ -163,12 +163,10 @@ public sealed class CostDataService : ICostDataService
          ORDER BY DATA
         """;
 
-    private readonly DbProviderFactory _factory;
     private readonly string _connectionString;
 
-    public CostDataService(DatabaseOptions databaseOptions, DbProviderFactoryResolver providerFactoryResolver)
+    public CostDataService(DatabaseOptions databaseOptions)
     {
-        _factory = providerFactoryResolver.Resolve(databaseOptions);
         _connectionString = databaseOptions.ConnectionString;
     }
 
@@ -183,9 +181,7 @@ public sealed class CostDataService : ICostDataService
 
         AddDateRangeParameters(command, request.UnitId, request.StartDate, request.EndDate);
 
-        using var adapter = _factory.CreateDataAdapter()
-            ?? throw new InvalidOperationException("O provider configurado nao suporta DataAdapter.");
-
+        using var adapter = new OracleDataAdapter((OracleCommand)command);
         adapter.SelectCommand = command;
 
         var dataTable = new DataTable();
@@ -242,12 +238,9 @@ public sealed class CostDataService : ICostDataService
         return new CostProcessResult(false, processedDays, skippedDays);
     }
 
-    private DbConnection CreateOpenConnection()
+    private OracleConnection CreateOpenConnection()
     {
-        var connection = _factory.CreateConnection()
-            ?? throw new InvalidOperationException("O provider configurado nao conseguiu criar uma conexao.");
-
-        connection.ConnectionString = _connectionString;
+        var connection = new OracleConnection(_connectionString);
         connection.Open();
         return connection;
     }
@@ -260,29 +253,29 @@ public sealed class CostDataService : ICostDataService
         }
     }
 
-    private static void AddDateRangeParameters(DbCommand command, int unitId, DateTime startDate, DateTime endDate)
+    private static void AddDateRangeParameters(OracleCommand command, int unitId, DateTime startDate, DateTime endDate)
     {
-        AddParameter(command, "unidade", unitId, DbType.Int32);
-        AddParameter(command, "data_inicial", startDate.Date, DbType.Date);
-        AddParameter(command, "data_final", endDate.Date, DbType.Date);
+        AddParameter(command, "unidade", unitId, OracleDbType.Int32);
+        AddParameter(command, "data_inicial", startDate.Date, OracleDbType.Date);
+        AddParameter(command, "data_final", endDate.Date, OracleDbType.Date);
     }
 
-    private static void AddSingleDateParameters(DbCommand command, int unitId, DateTime date)
+    private static void AddSingleDateParameters(OracleCommand command, int unitId, DateTime date)
     {
-        AddParameter(command, "unidade", unitId, DbType.Int32);
-        AddParameter(command, "data", date.Date, DbType.Date);
+        AddParameter(command, "unidade", unitId, OracleDbType.Int32);
+        AddParameter(command, "data", date.Date, OracleDbType.Date);
     }
 
-    private static void AddParameter(DbCommand command, string name, object value, DbType dbType)
+    private static void AddParameter(OracleCommand command, string name, object value, OracleDbType dbType)
     {
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.DbType = dbType;
-        parameter.Value = value;
+        var parameter = new OracleParameter(name, dbType)
+        {
+            Value = value
+        };
         command.Parameters.Add(parameter);
     }
 
-    private static int GetExistingRecordCount(DbConnection connection, CostType type, int unitId, DateTime date)
+    private static int GetExistingRecordCount(OracleConnection connection, CostType type, int unitId, DateTime date)
     {
         using var command = connection.CreateCommand();
         command.CommandText = type == CostType.Abate ? CountAbateSql : CountDesossaSql;
@@ -293,7 +286,7 @@ public sealed class CostDataService : ICostDataService
         return Convert.ToInt32(value);
     }
 
-    private static void DeleteExistingRecords(DbConnection connection, DbTransaction transaction, CostType type, int unitId, DateTime date)
+    private static void DeleteExistingRecords(OracleConnection connection, OracleTransaction transaction, CostType type, int unitId, DateTime date)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -303,7 +296,7 @@ public sealed class CostDataService : ICostDataService
         command.ExecuteNonQuery();
     }
 
-    private static void ExecuteCollection(DbConnection connection, DbTransaction transaction, CostType type, int unitId, DateTime date)
+    private static void ExecuteCollection(OracleConnection connection, OracleTransaction transaction, CostType type, int unitId, DateTime date)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
