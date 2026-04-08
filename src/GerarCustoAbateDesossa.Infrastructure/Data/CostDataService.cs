@@ -382,7 +382,7 @@ public sealed class CostDataService : ICostDataService
     {
         if (FiveDecimalColumns.Contains(columnName) && !value.IsNull)
         {
-            return FormatDecimal(value.Value, columnName);
+            return FormatDecimalText(value.ToString());
         }
 
         return value.ToString();
@@ -396,6 +396,37 @@ public sealed class CostDataService : ICostDataService
         }
 
         return value.ToString(CultureInfo.CurrentCulture);
+    }
+
+    private static string FormatDecimalText(string rawValue)
+    {
+        if (decimal.TryParse(rawValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var decimalValue))
+        {
+            return decimalValue.ToString("N5", CultureInfo.CurrentCulture);
+        }
+
+        var sign = string.Empty;
+        var numericText = rawValue.Trim();
+        if (numericText.StartsWith('-'))
+        {
+            sign = "-";
+            numericText = numericText[1..];
+        }
+
+        var parts = numericText.Split('.', 2);
+        var integerPart = parts[0];
+        var decimalPart = parts.Length > 1 ? parts[1] : string.Empty;
+
+        if (decimalPart.Length > 5)
+        {
+            decimalPart = decimalPart[..5];
+        }
+        else
+        {
+            decimalPart = decimalPart.PadRight(5, '0');
+        }
+
+        return $"{sign}{integerPart}{CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator}{decimalPart}";
     }
 
     private static int GetExistingRecordCount(OracleConnection connection, CostType type, int unitId, DateTime date, OracleTransaction? transaction = null)
