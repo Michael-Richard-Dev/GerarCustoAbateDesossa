@@ -1,15 +1,19 @@
-using System.ComponentModel;
 using System.Data;
-using System.Text;
-using GerarCustoAbateDesossa.Application;
+using GerarCustoAbateDesossa.Desktop.Models;
+using GerarCustoAbateDesossa.Desktop.Views;
 using GerarCustoAbateDesossa.Domain;
 
 namespace GerarCustoAbateDesossa.Desktop;
 
-public partial class MainForm : Form
+public partial class MainForm : Form, IMainView
 {
-    private readonly ICostDataService? _costDataService;
-    private DataTable? _currentData;
+    public event EventHandler? ViewLoaded;
+
+    public event EventHandler? SearchRequested;
+
+    public event EventHandler? ProcessRequested;
+
+    public event EventHandler? ExportRequested;
 
     public MainForm()
     {
@@ -17,180 +21,145 @@ public partial class MainForm : Form
         ConfigureScreen();
     }
 
-    public MainForm(ICostDataService costDataService) : this()
-    {
-        _costDataService = costDataService;
-        UpdateStatus("Pronto");
-    }
+    public DateTime StartDate => dtpInicial.Value.Date;
+
+    public DateTime EndDate => dtpFinal.Value.Date;
+
+    public UnitOption? SelectedUnit => cbUnidade.SelectedItem as UnitOption;
+
+    public CostType SelectedCostType =>
+        cbTipo.SelectedItem is CostTypeOption costTypeOption
+            ? costTypeOption.Value
+            : CostType.Abate;
 
     private void ConfigureScreen()
     {
-        if (LicenseManager.UsageMode == LicenseUsageMode.Designtime)
-        {
-            return;
-        }
-
         Font = new Font("Segoe UI", 9F);
-
-        cbUnidade.DisplayMember = nameof(UnitOption.DisplayName);
-        cbUnidade.ValueMember = nameof(UnitOption.Id);
-        cbUnidade.DataSource = UnitCatalog.All.ToList();
-
-        cbTipo.Items.Add("Custo de Abate");
-        cbTipo.Items.Add("Custo de Desossa");
-        cbTipo.SelectedIndex = 0;
-
-        dtpInicial.Value = DateTime.Today;
-        dtpFinal.Value = DateTime.Today;
     }
 
-    private CostType SelectedCostType => cbTipo.SelectedIndex == 0 ? CostType.Abate : CostType.Desossa;
-
-    private UnitOption SelectedUnit => (UnitOption)cbUnidade.SelectedItem!;
-
-    private async void btnPesquisar_Click(object? sender, EventArgs e)
+    protected override void OnShown(EventArgs e)
     {
-        await LoadDataAsync(manageBusyState: true);
+        base.OnShown(e);
+        ViewLoaded?.Invoke(this, EventArgs.Empty);
     }
 
-    private async void btnProcessar_Click(object? sender, EventArgs e)
+    public void BindUnits(IEnumerable<UnitOption> units)
     {
-        if (!TryValidateInputs())
+        ExecuteOnUiThread(() =>
         {
-            return;
-        }
-
-        if (_costDataService is null)
-        {
-            ShowError("O servico de dados nao foi inicializado. Verifique o CONFIG.INI.");
-            return;
-        }
-
-        SetBusy(true, "Iniciando processamento...");
-
-        try
-        {
-            var request = new CostProcessingRequest(
-                dtpInicial.Value.Date,
-                dtpFinal.Value.Date,
-                SelectedUnit.Id,
-                SelectedCostType);
-
-            var result = await Task.Run(() =>
-                _costDataService.ProcessCosts(request, ResolveExistingRecords, UpdateStatus));
-
-            await LoadDataAsync(manageBusyState: false);
-
-            if (result.Cancelled)
+            cbUnidade.DisplayMember = nameof(UnitOption.DisplayName);
+            cbUnidade.ValueMember = nameof(UnitOption.Id);
+            cbUnidade.DataSource = units.ToList();
+            if (cbUnidade.Items.Count > 0)
             {
-                UpdateStatus($"Processamento interrompido. Dias processados: {result.ProcessedDays}. Dias ignorados: {result.SkippedDays}.");
+                cbUnidade.SelectedIndex = 0;
             }
-            else
-            {
-                UpdateStatus($"Processamento concluido. Dias processados: {result.ProcessedDays}. Dias ignorados: {result.SkippedDays}.");
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowError("Falha ao processar os dados.", ex);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
-    private void btnExportar_Click(object? sender, EventArgs e)
+    public void BindCostTypes(IEnumerable<CostTypeOption> costTypes)
     {
-        if (_currentData is null || _currentData.Rows.Count == 0)
+        ExecuteOnUiThread(() =>
         {
-            MessageBox.Show(
-                this,
-                "Nao ha dados carregados para exportar.",
-                "Exportacao",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-            return;
-        }
+            cbTipo.DisplayMember = nameof(CostTypeOption.DisplayName);
+            cbTipo.ValueMember = nameof(CostTypeOption.Value);
+            cbTipo.DataSource = costTypes.ToList();
+            if (cbTipo.Items.Count > 0)
+            {
+                cbTipo.SelectedIndex = 0;
+            }
+        });
+    }
 
-        using var saveFileDialog = new SaveFileDialog
+    public void SetDateRange(DateTime startDate, DateTime endDate)
+    {
+        ExecuteOnUiThread(() =>
         {
-            Filter = "Arquivo CSV (*.csv)|*.csv",
-            FileName = $"{(SelectedCostType == CostType.Abate ? "custo_abate" : "custo_desossa")}_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
-        };
+            dtpInicial.Value = startDate;
+            dtpFinal.Value = endDate;
+        });
+    }
 
-        if (saveFileDialog.ShowDialog(this) != DialogResult.OK)
+    public void SetData(DataTable dataTable)
+    {
+        ExecuteOnUiThread(() =>
         {
-            return;
-        }
+            gridDados.DataSource = dataTable;
+        });
+    }
 
-        try
+    public void SetBusy(bool isBusy, string? statusText = null)
+    {
+        ExecuteOnUiThread(() =>
         {
-            ExportToCsv(_currentData, saveFileDialog.FileName);
-            UpdateStatus($"Arquivo exportado para {saveFileDialog.FileName}");
+            panelFiltros.Enabled = !isBusy;
+            btnExportar.Enabled = !isBusy;
+            UseWaitCursor = isBusy;
+
+            if (!string.IsNullOrWhiteSpace(statusText))
+            {
+                lblStatus.Text = statusText;
+            }
+        });
+    }
+
+    public void UpdateStatus(string text)
+    {
+        ExecuteOnUiThread(() =>
+        {
+            lblStatus.Text = text;
+        });
+    }
+
+    public void ShowError(string message, Exception? exception = null)
+    {
+        ExecuteOnUiThread(() =>
+        {
+            var fullMessage = exception is null
+                ? message
+                : $"{message}{Environment.NewLine}{Environment.NewLine}{exception.Message}";
 
             MessageBox.Show(
                 this,
-                "Exportacao concluida com sucesso.",
-                "Exportacao",
+                fullMessage,
+                "Erro",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        });
+    }
+
+    public void ShowWarning(string message, string title = "Validacao")
+    {
+        ExecuteOnUiThread(() =>
+        {
+            MessageBox.Show(
+                this,
+                message,
+                title,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        });
+    }
+
+    public void ShowInformation(string message, string title = "Informacao")
+    {
+        ExecuteOnUiThread(() =>
+        {
+            MessageBox.Show(
+                this,
+                message,
+                title,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
-        }
-        catch (Exception ex)
-        {
-            ShowError("Falha ao exportar o arquivo.", ex);
-        }
+        });
     }
 
-    private async Task LoadDataAsync(bool manageBusyState)
-    {
-        if (!TryValidateInputs())
-        {
-            return;
-        }
-
-        if (_costDataService is null)
-        {
-            ShowError("O servico de dados nao foi inicializado. Verifique o CONFIG.INI.");
-            return;
-        }
-
-        if (manageBusyState)
-        {
-            SetBusy(true, "Carregando dados...");
-        }
-
-        try
-        {
-            var request = new CostSearchRequest(
-                dtpInicial.Value.Date,
-                dtpFinal.Value.Date,
-                SelectedUnit.Id,
-                SelectedCostType);
-
-            _currentData = await Task.Run(() => _costDataService.LoadCosts(request));
-            gridDados.DataSource = _currentData;
-            UpdateStatus($"{_currentData.Rows.Count} registro(s) carregado(s).");
-        }
-        catch (Exception ex)
-        {
-            ShowError("Falha ao carregar os dados.", ex);
-        }
-        finally
-        {
-            if (manageBusyState)
-            {
-                SetBusy(false);
-            }
-        }
-    }
-
-    private ExistingRecordDecision ResolveExistingRecords(DateTime currentDate, int existingCount)
+    public ExistingRecordDecision ConfirmExistingRecords(DateTime currentDate, int existingCount)
     {
         if (InvokeRequired)
         {
             return (ExistingRecordDecision)Invoke(
-                new Func<DateTime, int, ExistingRecordDecision>(ResolveExistingRecords),
+                new Func<DateTime, int, ExistingRecordDecision>(ConfirmExistingRecords),
                 currentDate,
                 existingCount)!;
         }
@@ -210,35 +179,40 @@ public partial class MainForm : Form
         };
     }
 
-    private bool TryValidateInputs()
+    public string? PromptExportFilePath(string suggestedFileName)
     {
-        if (dtpInicial.Value.Date > dtpFinal.Value.Date)
+        if (InvokeRequired)
         {
-            MessageBox.Show(
-                this,
-                "A data inicial nao pode ser maior que a data final.",
-                "Validacao",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
-            return false;
+            return (string?)Invoke(new Func<string, string?>(PromptExportFilePath), suggestedFileName);
         }
 
-        return true;
-    }
-
-    private void SetBusy(bool isBusy, string? statusText = null)
-    {
-        panelFiltros.Enabled = !isBusy;
-        btnExportar.Enabled = !isBusy;
-        UseWaitCursor = isBusy;
-
-        if (!string.IsNullOrWhiteSpace(statusText))
+        using var saveFileDialog = new SaveFileDialog
         {
-            UpdateStatus(statusText);
-        }
+            Filter = "Arquivo CSV (*.csv)|*.csv",
+            FileName = suggestedFileName
+        };
+
+        return saveFileDialog.ShowDialog(this) == DialogResult.OK
+            ? saveFileDialog.FileName
+            : null;
     }
 
-    private void UpdateStatus(string text)
+    private void btnPesquisar_Click(object? sender, EventArgs e)
+    {
+        SearchRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void btnProcessar_Click(object? sender, EventArgs e)
+    {
+        ProcessRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void btnExportar_Click(object? sender, EventArgs e)
+    {
+        ExportRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ExecuteOnUiThread(Action action)
     {
         if (IsDisposed)
         {
@@ -247,54 +221,10 @@ public partial class MainForm : Form
 
         if (InvokeRequired)
         {
-            BeginInvoke(new Action<string>(UpdateStatus), text);
+            BeginInvoke(action);
             return;
         }
 
-        lblStatus.Text = text;
-    }
-
-    private void ShowError(string message, Exception? exception = null)
-    {
-        var fullMessage = exception is null
-            ? message
-            : $"{message}{Environment.NewLine}{Environment.NewLine}{exception.Message}";
-
-        MessageBox.Show(
-            this,
-            fullMessage,
-            "Erro",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Error);
-    }
-
-    private static void ExportToCsv(DataTable dataTable, string filePath)
-    {
-        using var writer = new StreamWriter(filePath, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-
-        var headers = dataTable.Columns
-            .Cast<DataColumn>()
-            .Select(column => EscapeCsv(column.ColumnName));
-        writer.WriteLine(string.Join(';', headers));
-
-        foreach (DataRow row in dataTable.Rows)
-        {
-            var values = dataTable.Columns
-                .Cast<DataColumn>()
-                .Select(column => EscapeCsv(row[column]?.ToString() ?? string.Empty));
-            writer.WriteLine(string.Join(';', values));
-        }
-    }
-
-    private static string EscapeCsv(string value)
-    {
-        if (value.Contains('"'))
-        {
-            value = value.Replace("\"", "\"\"");
-        }
-
-        return value.IndexOfAny([';', '"', '\r', '\n']) >= 0
-            ? $"\"{value}\""
-            : value;
+        action();
     }
 }

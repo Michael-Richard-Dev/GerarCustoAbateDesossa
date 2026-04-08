@@ -1,3 +1,5 @@
+using GerarCustoAbateDesossa.Desktop.Controllers;
+using GerarCustoAbateDesossa.Desktop.Services;
 using GerarCustoAbateDesossa.Infrastructure.Configuration;
 using GerarCustoAbateDesossa.Infrastructure.Data;
 
@@ -15,8 +17,11 @@ internal static class Program
             var configPath = Path.Combine(AppContext.BaseDirectory, "CONFIG.INI");
             var databaseOptions = ConfigurationLoader.LoadDatabaseOptions(configPath);
             var costDataService = new CostDataService(databaseOptions);
+            var csvExportService = new CsvExportService();
+            var mainForm = new MainForm();
+            _ = new MainController(mainForm, costDataService, csvExportService);
 
-            System.Windows.Forms.Application.Run(new MainForm(costDataService));
+            System.Windows.Forms.Application.Run(mainForm);
         }
         catch (Exception ex)
         {
