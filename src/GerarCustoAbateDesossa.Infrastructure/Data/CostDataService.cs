@@ -12,7 +12,8 @@ public sealed class CostDataService : ICostDataService
         SELECT *
           FROM CCAMILO.CUSTO_ABATE
          WHERE ID_UNIDADE = :unidade
-           AND DATA BETWEEN :data_inicial AND :data_final
+           AND DATA >= :data_inicial
+           AND DATA < :data_limite
          ORDER BY DATA
         """;
 
@@ -20,33 +21,38 @@ public sealed class CostDataService : ICostDataService
         SELECT *
           FROM CCAMILO.CUSTO_DESOSSA
          WHERE ID_UNIDADE = :unidade
-           AND DATA BETWEEN :data_inicial AND :data_final
+           AND DATA >= :data_inicial
+           AND DATA < :data_limite
          ORDER BY DATA
         """;
 
     private const string CountAbateSql = """
         SELECT COUNT(1)
           FROM CCAMILO.CUSTO_ABATE
-         WHERE DATA = :data
+         WHERE DATA >= :data_inicial
+           AND DATA < :data_limite
            AND ID_UNIDADE = :unidade
         """;
 
     private const string CountDesossaSql = """
         SELECT COUNT(1)
           FROM CCAMILO.CUSTO_DESOSSA
-         WHERE DATA = :data
+         WHERE DATA >= :data_inicial
+           AND DATA < :data_limite
            AND ID_UNIDADE = :unidade
         """;
 
     private const string DeleteAbateSql = """
         DELETE FROM CCAMILO.CUSTO_ABATE
-         WHERE DATA = :data
+         WHERE DATA >= :data_inicial
+           AND DATA < :data_limite
            AND ID_UNIDADE = :unidade
         """;
 
     private const string DeleteDesossaSql = """
         DELETE FROM CCAMILO.CUSTO_DESOSSA
-         WHERE DATA = :data
+         WHERE DATA >= :data_inicial
+           AND DATA < :data_limite
            AND ID_UNIDADE = :unidade
         """;
 
@@ -278,13 +284,14 @@ public sealed class CostDataService : ICostDataService
     {
         AddParameter(command, "unidade", unitId, OracleDbType.Int32);
         AddParameter(command, "data_inicial", startDate.Date, OracleDbType.Date);
-        AddParameter(command, "data_final", endDate.Date, OracleDbType.Date);
+        AddParameter(command, "data_limite", endDate.Date.AddDays(1), OracleDbType.Date);
     }
 
     private static void AddSingleDateParameters(OracleCommand command, int unitId, DateTime date)
     {
         AddParameter(command, "unidade", unitId, OracleDbType.Int32);
-        AddParameter(command, "data", date.Date, OracleDbType.Date);
+        AddParameter(command, "data_inicial", date.Date, OracleDbType.Date);
+        AddParameter(command, "data_limite", date.Date.AddDays(1), OracleDbType.Date);
     }
 
     private static void AddParameter(OracleCommand command, string name, object value, OracleDbType dbType)
