@@ -183,11 +183,25 @@ public sealed class CostDataService : ICostDataService
 
         AddDateRangeParameters(command, request.UnitId, request.StartDate, request.EndDate);
 
-        using var adapter = new OracleDataAdapter((OracleCommand)command);
-        adapter.SelectCommand = command;
-
         var dataTable = new DataTable();
-        adapter.Fill(dataTable);
+        using var reader = command.ExecuteReader();
+
+        for (var fieldIndex = 0; fieldIndex < reader.FieldCount; fieldIndex++)
+        {
+            dataTable.Columns.Add(reader.GetName(fieldIndex), typeof(string));
+        }
+
+        while (reader.Read())
+        {
+            var row = dataTable.NewRow();
+            for (var fieldIndex = 0; fieldIndex < reader.FieldCount; fieldIndex++)
+            {
+                row[fieldIndex] = NormalizeFieldValue(reader, fieldIndex);
+            }
+
+            dataTable.Rows.Add(row);
+        }
+
         return dataTable;
     }
 
@@ -280,6 +294,22 @@ public sealed class CostDataService : ICostDataService
             Value = value
         };
         command.Parameters.Add(parameter);
+    }
+
+    private static object NormalizeFieldValue(OracleDataReader reader, int fieldIndex)
+    {
+        if (reader.IsDBNull(fieldIndex))
+        {
+            return DBNull.Value;
+        }
+
+        var value = reader.GetValue(fieldIndex);
+        return value switch
+        {
+            DateTime dateTime => dateTime.ToString("dd/MM/yyyy HH:mm:ss"),
+            byte[] bytes => Convert.ToBase64String(bytes),
+            _ => value.ToString() ?? string.Empty
+        };
     }
 
     private static int GetExistingRecordCount(OracleConnection connection, CostType type, int unitId, DateTime date)
