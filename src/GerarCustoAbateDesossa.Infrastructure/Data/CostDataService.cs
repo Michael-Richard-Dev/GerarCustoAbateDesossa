@@ -2,6 +2,7 @@ using System.Data;
 using GerarCustoAbateDesossa.Application;
 using GerarCustoAbateDesossa.Domain;
 using Oracle.ManagedDataAccess.Client;
+using Oracle.ManagedDataAccess.Types;
 
 namespace GerarCustoAbateDesossa.Infrastructure.Data;
 
@@ -303,9 +304,20 @@ public sealed class CostDataService : ICostDataService
             return DBNull.Value;
         }
 
-        var value = reader.GetValue(fieldIndex);
+        var value = reader.GetOracleValue(fieldIndex);
         return value switch
         {
+            OracleDate oracleDate => oracleDate.Value.ToString("dd/MM/yyyy HH:mm:ss"),
+            OracleTimeStamp oracleTimeStamp => oracleTimeStamp.Value.ToString("dd/MM/yyyy HH:mm:ss"),
+            OracleTimeStampLTZ oracleTimeStampLtz => oracleTimeStampLtz.Value.ToString("dd/MM/yyyy HH:mm:ss"),
+            OracleTimeStampTZ oracleTimeStampTz => oracleTimeStampTz.Value.ToString(),
+            OracleDecimal oracleDecimal => oracleDecimal.ToString(),
+            OracleString oracleString => oracleString.Value,
+            OracleClob oracleClob => oracleClob.Value,
+            OracleBlob oracleBlob => Convert.ToBase64String(oracleBlob.Value),
+            OracleBinary oracleBinary => Convert.ToBase64String(oracleBinary.Value),
+            OracleIntervalDS oracleIntervalDs => oracleIntervalDs.ToString(),
+            OracleIntervalYM oracleIntervalYm => oracleIntervalYm.ToString(),
             DateTime dateTime => dateTime.ToString("dd/MM/yyyy HH:mm:ss"),
             byte[] bytes => Convert.ToBase64String(bytes),
             _ => value.ToString() ?? string.Empty
