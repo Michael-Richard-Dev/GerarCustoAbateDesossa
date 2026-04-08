@@ -392,7 +392,7 @@ public sealed class CostDataService : ICostDataService
     {
         if (FiveDecimalColumns.Contains(columnName))
         {
-            return value.ToString("N5", CultureInfo.CurrentCulture);
+            return value.ToString("0.00000", CultureInfo.CurrentCulture);
         }
 
         return value.ToString(CultureInfo.CurrentCulture);
@@ -400,9 +400,14 @@ public sealed class CostDataService : ICostDataService
 
     private static string FormatDecimalText(string rawValue)
     {
-        if (decimal.TryParse(rawValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var decimalValue))
+        if (decimal.TryParse(rawValue, NumberStyles.Any, CultureInfo.CurrentCulture, out var currentCultureValue))
         {
-            return decimalValue.ToString("N5", CultureInfo.CurrentCulture);
+            return currentCultureValue.ToString("0.00000", CultureInfo.CurrentCulture);
+        }
+
+        if (decimal.TryParse(rawValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var invariantValue))
+        {
+            return invariantValue.ToString("0.00000", CultureInfo.CurrentCulture);
         }
 
         var sign = string.Empty;
@@ -413,9 +418,32 @@ public sealed class CostDataService : ICostDataService
             numericText = numericText[1..];
         }
 
-        var parts = numericText.Split('.', 2);
-        var integerPart = parts[0];
-        var decimalPart = parts.Length > 1 ? parts[1] : string.Empty;
+        numericText = numericText.Replace(" ", string.Empty);
+
+        var lastCommaIndex = numericText.LastIndexOf(',');
+        var lastDotIndex = numericText.LastIndexOf('.');
+        var separatorIndex = Math.Max(lastCommaIndex, lastDotIndex);
+
+        string integerPart;
+        string decimalPart;
+        if (separatorIndex >= 0)
+        {
+            integerPart = numericText[..separatorIndex];
+            decimalPart = numericText[(separatorIndex + 1)..];
+        }
+        else
+        {
+            integerPart = numericText;
+            decimalPart = string.Empty;
+        }
+
+        integerPart = integerPart.Replace(".", string.Empty).Replace(",", string.Empty);
+        decimalPart = decimalPart.Replace(".", string.Empty).Replace(",", string.Empty);
+
+        if (string.IsNullOrEmpty(integerPart))
+        {
+            integerPart = "0";
+        }
 
         if (decimalPart.Length > 5)
         {
